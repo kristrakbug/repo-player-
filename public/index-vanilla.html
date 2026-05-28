@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reproductores IPTV Vanilla - Canal Directo</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <!-- Lucide Icons (as SVG or direct icons) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Hls.js Library for M3U8 Streams -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #050505;
+            color: #ffffff;
+            overflow: hidden;
+            user-select: none;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .glass-premium {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .focused {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 35px rgba(239, 68, 68, 0.5);
+            transform: scale(1.08);
+            background: rgba(255, 255, 255, 0.08);
+        }
+        .sub-focused {
+            border-color: #ffffff !important;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+            transform: scale(1.03);
+            background: rgba(239, 68, 68, 0.95) !important;
+            color: #ffffff !important;
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen">
+
+    <!-- PLAYER AREA -->
+    <div id="player-container" class="absolute inset-0 bg-black overflow-hidden select-none">
+        <!-- Direct IP Video Player -->
+        <video id="iptv-video" class="absolute inset-0 w-full h-full object-cover hidden" playsinline autoplay></video>
+        <!-- Custom iframe embed player space -->
+        <div id="iframe-space" class="absolute inset-0 w-full h-full bg-black hidden"></div>
+
+        <!-- Custom Loading / Buffering Overlay -->
+        <div id="loading-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-20 transition-all duration-300">
+            <div class="flex flex-col items-center gap-4">
+                <div class="animate-spin text-red-600">
+                    <i data-lucide="loader-2" class="w-16 h-16"></i>
+                </div>
+                <p class="text-white text-xs font-black tracking-[0.3em] uppercase italic animate-pulse">Cargando canal...</p>
+            </div>
+        </div>
+
+        <!-- Custom Error Overlay - "Elige otra opción" -->
+        <div id="error-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-black/95 z-20 hidden transition-all duration-300">
+            <div class="bg-red-950/40 border border-red-500/20 rounded-3xl p-8 text-center max-w-sm flex flex-col items-center gap-4 shadow-[0_0_50px_rgba(239,68,68,0.2)] animate-[shrink_0.3s_ease-out]">
+                <span class="text-4xl">⚠️</span>
+                <p class="text-white text-xl font-black tracking-widest uppercase italic">Elige otra opción.</p>
+            </div>
+        </div>
+
+        <!-- Ambient Dark Shadow Layer -->
+        <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90 pointer-events-none"></div>
+    </div>
+
+    <!-- FLOATING LEFT OPTIONS PANEL -->
+    <div id="left-options-panel" class="fixed bottom-[180px] left-4 md:left-6 z-50 flex flex-col items-start gap-2 bg-black/85 backdrop-blur-3xl border border-white/10 rounded-2xl p-4 shadow-[0_0_50px_rgba(0,0,0,0.8)] w-60 max-h-[300px] overflow-y-auto hidden">
+        <div class="flex items-center gap-1.5 text-white/50 mb-0.5">
+            <i data-lucide="list" class="text-red-500 animate-pulse w-4 h-4"></i>
+            <span class="text-[9px] font-black tracking-[0.2em] uppercase">Opciones Disponibles</span>
+        </div>
+        <h3 id="current-channel-title" class="text-white text-xs font-black tracking-wide truncate max-w-full uppercase italic mb-1">
+            Canal
+        </h3>
+        <div id="options-buttons-container" class="flex flex-col gap-1.5 w-full">
+            <!-- Dynamically populated stream option buttons -->
+        </div>
+    </div>
+
+    <!-- LOWER SLIDER CAROUSEL -->
+    <div id="lower-slider" class="absolute -bottom-4 left-0 w-full p-2 lg:p-4 pb-0 lg:pb-0 z-10 flex flex-col items-center transition-all duration-300">
+        <!-- Horizontal Carousel -->
+        <div class="relative w-full overflow-hidden group flex items-center justify-center">
+            <!-- Arrows -->
+            <button onclick="scrollGrid('left')" class="absolute left-4 z-20 w-12 h-12 rounded-full border border-white/10 hidden sm:flex items-center justify-center bg-black/60 backdrop-blur-xl hover:bg-white hover:text-black transition-all shadow-2xl">
+                <i data-lucide="chevron-left" class="w-6 h-6"></i>
+            </button>
+
+            <!-- Cards Container -->
+            <div id="cards-scroll-container" class="flex gap-4 lg:gap-6 overflow-x-auto no-scrollbar py-6 px-10 sm:px-16 w-full scroll-smooth snap-x snap-mandatory">
+                <!-- Dynamically populated cards will go here -->
+            </div>
+
+            <button onclick="scrollGrid('right')" class="absolute right-4 z-20 w-12 h-12 rounded-full border border-white/10 hidden sm:flex items-center justify-center bg-black/60 backdrop-blur-xl hover:bg-white hover:text-black transition-all shadow-2xl">
+                <i data-lucide="chevron-right" class="w-6 h-6"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- UI HEADER & SETTINGS HOVER BAR -->
+    <div id="header-bar" class="absolute top-0 left-0 w-full p-4 lg:p-6 z-10 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
+        <div class="flex items-center gap-3">
+            <span class="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping"></span>
+            <span class="text-white text-xs font-black tracking-[0.3em] uppercase italic">IPTV Direct PRO</span>
+        </div>
+        <!-- Settings button -->
+        <button id="admin-trigger-btn" onclick="toggleAdminPanel()" class="p-3.5 rounded-full bg-black/40 border border-white/10 text-white hover:bg-white hover:text-black transition-all shadow-xl font-bold text-xs uppercase flex items-center gap-2">
+            <i data-lucide="settings" class="w-4 h-4"></i>
+            <span>Administrar M3U</span>
+        </button>
+    </div>
+
+    <!-- ADMIN PANEL OVERLAY -->
+    <div id="admin-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden">
+        <div class="bg-[#0e0e0e] border border-white/10 w-full max-w-2xl rounded-3xl p-6 sm:p-8 flex flex-col gap-6 shadow-[0_0_80px_rgba(0,0,0,0.9)] scale-100 transition-all">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="settings" class="text-red-500 w-5 h-5"></i>
+                    <h2 class="text-lg font-black tracking-wider uppercase">Listado de Canales M3U / Embed</h2>
+                </div>
+                <button onclick="toggleAdminPanel()" class="text-white/50 hover:text-white transition-all">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <!-- Form to Add/Edit Channel -->
+            <form id="channel-form" onsubmit="saveChannel(event)" class="bg-white/5 rounded-2xl p-4 border border-white/5 flex flex-col gap-3">
+                <h4 id="form-title" class="text-xs font-black uppercase text-red-500">Añadir Nuevo Canal</h4>
+                <input type="hidden" id="edit-channel-id">
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="text" id="ch-name" placeholder="Nombre de Canal" required class="bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-white text-xs focus:ring-1 focus:ring-red-500 outline-none">
+                    <input type="text" id="ch-logo" placeholder="URL del Logotipo (opcional)" class="bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-white text-xs focus:ring-1 focus:ring-red-500 outline-none">
+                </div>
+                
+                <div>
+                    <textarea id="ch-urls" placeholder="URLs o Embed (Para opciones, ingresa una por línea)" required rows="3" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-white text-xs focus:ring-1 focus:ring-red-500 outline-none font-mono"></textarea>
+                    <p class="text-[9px] text-white/40 mt-1">Soporta enlaces m3u8, mpd, ts y códigos embed con <iframe...> de YouTube u otros.</p>
+                </div>
+
+                <div class="flex gap-2 justify-end">
+                    <button type="button" onclick="resetForm()" class="bg-white/5 text-white/70 px-4 py-2 rounded-xl text-xs font-bold uppercase hover:bg-white/10">Limpiar</button>
+                    <button type="submit" class="bg-red-600 text-white px-5 py-2 rounded-xl text-xs font-bold uppercase hover:bg-red-500">Guardar Canal</button>
+                </div>
+            </form>
+
+            <!-- Channels list editor container -->
+            <div class="flex-1 overflow-y-auto max-h-[250px] pr-2 no-scrollbar border border-white/5 rounded-2xl bg-black/20 p-3">
+                <h4 class="text-[10px] font-black uppercase text-white/40 mb-2">Canales Actuales</h4>
+                <div id="admin-channels-list" class="flex flex-col gap-2">
+                    <!-- Dynamic collection of current channels -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CLIENT VANILLA PLAYBACK ENGINE -->
+    <script>
+        // Default Channels Configuration
+        const INITIAL_CHANNELS = [
+            {
+                id: 'espn',
+                name: 'ESPN',
+                logo: 'https://images.unsplash.com/photo-1542204112-97376d307ce7?auto=format&fit=crop&q=80&w=200&h=200',
+                url: 'https://s2.bufaloweb.com/bufalo10/tracks-v1a1/mono.ts.m3u8',
+                urls: [
+                    'https://s2.bufaloweb.com/bufalo10/tracks-v1a1/mono.ts.m3u8',
+                    '<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width:100%;"><iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" webkitAllowFullScreen mozallowfullscreen allowfullscreen width="640" height="360" frameborder="0" allow="autoplay" src="https://anym3u8player.com/ultimate-player-generator/player.php?player=clappr&url=https%3A%2F%2Fs2.bufaloweb.com%2Fbufalo10%2Ftracks-v1a1%2Fmono.ts.m3u8&autoplay=1&controls=auto&theme=dark&buffer=30&quality=1&speed=1&pip=1&fullscreen=1&no_download=1&width=responsive&aspect=16%3A9"></iframe></div>',
+                    '<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width:100%;"><iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" webkitAllowFullScreen mozallowfullscreen allowfullscreen width="640" height="360" frameborder="0" allow="autoplay" src="https://anym3u8player.com/tv/p.php?url=https%3A%2F%2Fs2.bufaloweb.com%2Fbufalo10%2Ftracks-v1a1%2Fmono.ts.m3u8"></iframe></div>'
+                ]
+            },
+            {
+                id: 'win_plus',
+                name: 'WIN SPORTS+',
+                logo: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&q=80&w=200&h=200',
+                url: 'https://s2.bufaloweb.com/bufalo10/tracks-v1a1/mono.ts.m3u8',
+                urls: [
+                    'https://s2.bufaloweb.com/bufalo10/tracks-v1a1/mono.ts.m3u8'
+                ]
+            },
+            {
+                id: 'tnt_sports',
+                name: 'TNT SPORTS',
+                logo: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=200&h=200',
+                url: 'https://s2.bufaloweb.com/bufalo10/tracks-v1a1/mono.ts.m3u8',
+                urls: [
+                    'https://s2.bufaloweb.com/bufalo10/tracks-v1a1/mono.ts.m3u8'
+                ]
+            }
+        ];
+
+        let channels = JSON.parse(localStorage.getItem('iptv_channels_db')) || INITIAL_CHANNELS;
+        let activeIndex = 0;
+        let activeSubIndex = -1;
+        let selectedUrl = '';
+        let hlsPlayer = null;
+        let errorTimer = null;
+        let loadingTimeout = null;
+
+        // Video and space selectors
+        const videoElement = document.getElementById('iptv-video');
+        const iframeSpace = document.getElementById('iframe-space');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const errorOverlay = document.getElementById('error-overlay');
+
+        // Initialize Application
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            renderChannelSlider();
+            loadChannel(0);
+            
+            // Set up TV Spatial Keyboard listen
+            window.addEventListener('keydown', handleGlobalKeydown);
+        });
+
+        function saveChannelsDb() {
+            localStorage.setItem('iptv_channels_db', JSON.stringify(channels));
+            renderChannelSlider();
+        }
+
+        // Render Carousel in the UI
+        function renderChannelSlider() {
+            const container = document.getElementById('cards-scroll-container');
+            container.innerHTML = '';
+
+            channels.forEach((item, idx) => {
+                const card = document.createElement('div');
+                card.id = `channel-card-${idx}`;
+                card.className = `flex-none flex flex-col items-center gap-3 select-none snap-center pb-2 cursor-pointer`;
+                
+                // Active styles will be handled by the updateFocus styles
+                card.innerHTML = `
+                    <div class="h-8 w-1 opacity-0 pointer-events-none"></div>
+                    <div class="w-28 h-28 lg:w-36 lg:h-36 flex items-center justify-center rounded-[1.8rem] overflow-hidden glass-premium border-2 border-white/5 transition-all duration-300 shadow-xl box-inner-element">
+                        ${item.logo ? `<img src="${item.logo}" alt="${item.name}" class="w-full h-full object-cover" />` : `<span class="text-white text-sm font-black italic uppercase">${item.name.substring(0,3)}</span>`}
+                    </div>
+                    <p class="text-[10px] text-white/50 tracking-wider uppercase font-black italic max-w-full truncate px-2 text-center mt-0.5">${item.name}</p>
+                `;
+
+                card.addEventListener('click', () => {
+                    activeIndex = idx;
+                    activeSubIndex = -1;
+                    const ch = channels[activeIndex];
+                    const playUrl = (ch.urls && ch.urls.length > 0) ? ch.urls[0] : ch.url;
+                    
+                    selectedUrl = playUrl;
+                    updateUIFocus();
+                    playStream(playUrl, ch);
+                });
+
+                container.appendChild(card);
+            });
+
+            updateUIFocus();
+        }
+
+        // Handle Active Selection Visual Focus
+        function updateUIFocus() {
+            // Remove focused class matching keys
+            channels.forEach((_, idx) => {
+                const card = document.getElementById(`channel-card-${idx}`);
+                if (card) {
+                    const innerBox = card.querySelector('.box-inner-element');
+                    if (innerBox) {
+                        innerBox.classList.remove('focused');
+                    }
+                }
+            });
+
+            // Add active focus class
+            const activeCard = document.getElementById(`channel-card-${activeIndex}`);
+            if (activeCard) {
+                const activeBox = activeCard.querySelector('.box-inner-element');
+                if (activeBox) {
+                    activeBox.classList.add('focused');
+                }
+                
+                // Scroll beautifully
+                activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+
+            // Pop alternatives in floating sidebar menu
+            const currentItem = channels[activeIndex];
+            const optionsPanel = document.getElementById('left-options-panel');
+            const optionsContainer = document.getElementById('options-buttons-container');
+            const channelTitle = document.getElementById('current-channel-title');
+
+            if (currentItem && currentItem.urls && currentItem.urls.length > 1) {
+                channelTitle.textContent = currentItem.name;
+                optionsContainer.innerHTML = '';
+
+                currentItem.urls.forEach((choiceUrl, oId) => {
+                    const isActiveChoice = selectedUrl === choiceUrl || (selectedUrl === '' && oId === 0);
+                    const isFocusedSub = activeSubIndex === oId;
+
+                    const btn = document.createElement('button');
+                    btn.className = `w-full py-2 px-3 rounded-xl text-left font-bold text-[10px] uppercase tracking-wider transition-all border flex items-center justify-between cursor-pointer ${
+                        isActiveChoice 
+                            ? 'bg-red-600 border-red-500 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]' 
+                            : 'bg-white/5 border-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                    } ${isFocusedSub ? 'sub-focused' : ''}`;
+
+                    btn.innerHTML = `
+                        <span>Opción ${oId + 1}</span>
+                        ${isActiveChoice ? '<span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>' : ''}
+                    `;
+
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        activeSubIndex = oId;
+                        selectedUrl = choiceUrl;
+                        updateUIFocus();
+                        playStream(choiceUrl, currentItem);
+                    });
+
+                    optionsContainer.appendChild(btn);
+                });
+
+                optionsPanel.classList.remove('hidden');
+            } else {
+                optionsPanel.classList.add('hidden');
+            }
+        }
+
+        // Load channel at specified index
+        function loadChannel(idx) {
+            activeIndex = idx;
+            activeSubIndex = -1;
+            const ch = channels[activeIndex];
+            if (!ch) return;
+            const playUrl = (ch.urls && ch.urls.length > 0) ? ch.urls[0] : ch.url;
+            selectedUrl = playUrl;
+            updateUIFocus();
+            playStream(playUrl, ch);
+        }
+
+        // Direct playback stream switcher
+        function playStream(urlToPlay, channelObject) {
+            // Cancel clear timer loops
+            if (errorTimer) clearTimeout(errorTimer);
+            if (loadingTimeout) clearTimeout(loadingTimeout);
+
+            // Show Load block screen
+            loadingOverlay.classList.remove('hidden');
+            errorOverlay.classList.add('hidden');
+
+            // Timeout error: "Elige otra opción" triggers on 12 seconds
+            errorTimer = setTimeout(() => {
+                loadingOverlay.classList.add('hidden');
+                errorOverlay.classList.remove('hidden');
+            }, 12000);
+
+            // Check if embed string
+            const isEmbed = checkIsEmbed(urlToPlay);
+
+            if (isEmbed) {
+                // Serve as embed iframe
+                videoElement.classList.add('hidden');
+                iframeSpace.classList.remove('hidden');
+                
+                try {
+                    videoElement.pause();
+                } catch(e){}
+
+                if (urlToPlay.trim().startsWith("<")) {
+                    // Direct HTML insert with strict autoplay rules injected
+                    iframeSpace.innerHTML = urlToPlay;
+                    
+                    // Post-process the embedded iframe in standard DOM
+                    setTimeout(() => {
+                        const frames = iframeSpace.getElementsByTagName('iframe');
+                        for(let i=0; i<frames.length; i++) {
+                            const fr = frames[i];
+                            fr.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
+                            let frSrc = fr.getAttribute('src') || '';
+                            if (frSrc) {
+                                let updSrc = frSrc;
+                                if (!frSrc.includes('autoplay=')) updSrc += (updSrc.includes('?') ? '&' : '?') + 'autoplay=1';
+                                if (!frSrc.includes('play=')) updSrc += (updSrc.includes('?') ? '&' : '?') + 'play=1';
+                                if (frSrc !== updSrc) fr.setAttribute('src', updSrc);
+                            }
+                        }
+                    }, 100);
+                } else {
+                    // Extract direct embed url and mount in clean standard iframe
+                    const finalUrl = `https://anym3u8player.com/tv/video-player.php?url=${encodeURIComponent(urlToPlay)}&autoplay=1&play=1`;
+                    iframeSpace.innerHTML = `
+                        <iframe src="${finalUrl}" class="absolute inset-0 w-full h-full border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen scrolling="no"></iframe>
+                    `;
+                }
+
+                // If iframe loads, hide loading screen after 4 seconds
+                loadingTimeout = setTimeout(() => {
+                    loadingOverlay.classList.add('hidden');
+                }, 4000);
+
+            } else {
+                // Direct video streaming logic (Hls, ts playback)
+                iframeSpace.classList.add('hidden');
+                videoElement.classList.remove('hidden');
+                
+                if (hlsPlayer) {
+                    hlsPlayer.destroy();
+                    hlsPlayer = null;
+                }
+
+                const setupDirectVideoListeners = () => {
+                    videoElement.onplaying = () => {
+                        loadingOverlay.classList.add('hidden');
+                        if (errorTimer) clearTimeout(errorTimer);
+                    };
+                    videoElement.onwaiting = () => {
+                        loadingOverlay.classList.remove('hidden');
+                    };
+                    videoElement.onerror = () => {
+                        loadingOverlay.classList.add('hidden');
+                        errorOverlay.classList.remove('hidden');
+                    };
+                };
+
+                setupDirectVideoListeners();
+
+                if (Hls.isSupported() && (urlToPlay.includes('.m3u8') || urlToPlay.includes('.m3u'))) {
+                    hlsPlayer = new Hls({
+                        enableWorker: true,
+                        lowLatencyMode: true
+                    });
+                    hlsPlayer.loadSource(urlToPlay);
+                    hlsPlayer.attachMedia(videoElement);
+                    hlsPlayer.on(Hls.Events.MANIFEST_PARSED, () => {
+                        videoElement.play().catch(err => {
+                            videoElement.muted = true;
+                            videoElement.play();
+                        });
+                    });
+                } else {
+                    // Native direct URL stream
+                    videoElement.src = urlToPlay;
+                    videoElement.play().catch(err => {
+                        videoElement.muted = true;
+                        videoElement.play();
+                    });
+                }
+            }
+        }
+
+        // Determine if URL is a plain source or raw embed player code
+        function checkIsEmbed(u) {
+            const clean = (u || "").trim().toLowerCase();
+            return (
+                clean.startsWith("<iframe") || 
+                clean.includes("<div") || 
+                (clean.includes("<script") && clean.includes("embed")) || 
+                clean.includes("iframe") ||
+                clean.includes("video-player.php") ||
+                clean.includes("player.php") ||
+                clean.includes("/embed/") ||
+                clean.includes("anym3u8player")
+            );
+        }
+
+        // Carousel scrolling controls
+        function scrollGrid(dir) {
+            const container = document.getElementById('cards-scroll-container');
+            const offset = dir === 'left' ? -250 : 250;
+            container.scrollBy({ left: offset, behavior: 'smooth' });
+        }
+
+        // TV / Keypad Spatial controllers
+        function handleGlobalKeydown(e) {
+            const activeCh = channels[activeIndex];
+            const hasOpts = activeCh && activeCh.urls && activeCh.urls.length > 1;
+
+            if (hasOpts) {
+                if (activeSubIndex === -1) {
+                    // Navigate bottom level row
+                    if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        activeSubIndex = 0;
+                        updateUIFocus();
+                    } else if (e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        activeIndex = (activeIndex + 1) % channels.length;
+                        loadChannel(activeIndex);
+                    } else if (e.key === 'ArrowLeft') {
+                        e.preventDefault();
+                        activeIndex = (activeIndex - 1 + channels.length) % channels.length;
+                        loadChannel(activeIndex);
+                    } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        // Click plays default 1st Option
+                        loadChannel(activeIndex);
+                    }
+                } else {
+                    // Vertical left options menu active
+                    if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        activeSubIndex = Math.max(0, activeSubIndex - 1);
+                        updateUIFocus();
+                    } else if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        if (activeSubIndex === activeCh.urls.length - 1) {
+                            // Exit options menu back to grid
+                            activeSubIndex = -1;
+                        } else {
+                            activeSubIndex = Math.min(activeCh.urls.length - 1, activeSubIndex + 1);
+                        }
+                        updateUIFocus();
+                    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        activeSubIndex = -1;
+                        updateUIFocus();
+                    } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const targetUrl = activeCh.urls[activeSubIndex];
+                        selectedUrl = targetUrl;
+                        updateUIFocus();
+                        playStream(targetUrl, activeCh);
+                    }
+                }
+            } else {
+                // If current item does not support multiple links option
+                if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    activeIndex = (activeIndex + 1) % channels.length;
+                    loadChannel(activeIndex);
+                } else if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    activeIndex = (activeIndex - 1 + channels.length) % channels.length;
+                    loadChannel(activeIndex);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    loadChannel(activeIndex);
+                }
+            }
+        }
+
+        // Administrative tools
+        function toggleAdminPanel() {
+            const modal = document.getElementById('admin-modal');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) {
+                renderAdminChannels();
+            }
+        }
+
+        function renderAdminChannels() {
+            const list = document.getElementById('admin-channels-list');
+            list.innerHTML = '';
+
+            channels.forEach((item, index) => {
+                const el = document.createElement('div');
+                el.className = 'flex justify-between items-center bg-white/5 border border-white/5 rounded-xl px-4 py-2 text-xs sm:text-xs';
+                
+                el.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="font-black text-red-500">${index + 1}</span>
+                        <span class="text-white font-bold">${item.name}</span>
+                        <span class="text-[9px] text-white/40 italic font-mono truncate max-w-[200px]">${item.url}</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="editChannel(${index})" class="bg-blue-600/20 text-blue-400 py-1 px-3 border border-blue-500/20 rounded-lg font-black uppercase text-[9px] hover:bg-blue-600 hover:text-white transition-all">Editar</button>
+                        <button onclick="deleteChannel(${index})" class="bg-red-600/20 text-red-400 py-1 px-3 border border-red-500/20 rounded-lg font-black uppercase text-[9px] hover:bg-red-600 hover:text-white transition-all">Eliminar</button>
+                    </div>
+                `;
+                list.appendChild(el);
+            });
+        }
+
+        function saveChannel(e) {
+            e.preventDefault();
+            const editId = document.getElementById('edit-channel-id').value;
+            const name = document.getElementById('ch-name').value.trim();
+            const logo = document.getElementById('ch-logo').value.trim();
+            const urlsText = document.getElementById('ch-urls').value.trim();
+
+            const parsedUrls = urlsText.split('\n').map(l => l.trim()).filter(l => l !== '');
+            if (parsedUrls.length === 0) return;
+
+            const newChannelObj = {
+                id: editId !== '' ? channels[parseInt(editId)].id : 'ch_' + Date.now(),
+                name,
+                logo: logo !== '' ? logo : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=200&h=200',
+                url: parsedUrls[0],
+                urls: parsedUrls
+            };
+
+            if (editId !== '') {
+                channels[parseInt(editId)] = newChannelObj;
+            } else {
+                channels.push(newChannelObj);
+            }
+
+            saveChannelsDb();
+            resetForm();
+            renderAdminChannels();
+        }
+
+        function editChannel(index) {
+            const ch = channels[index];
+            if (!ch) return;
+            document.getElementById('edit-channel-id').value = index;
+            document.getElementById('ch-name').value = ch.name;
+            document.getElementById('ch-logo').value = ch.logo || '';
+            document.getElementById('ch-urls').value = ch.urls ? ch.urls.join('\n') : ch.url;
+
+            document.getElementById('form-title').textContent = 'Editar Canal: ' + ch.name;
+        }
+
+        function deleteChannel(index) {
+            if (confirm(`¿Estás seguro de que quieres eliminar ${channels[index].name}?`)) {
+                channels.splice(index, 1);
+                saveChannelsDb();
+                renderAdminChannels();
+            }
+        }
+
+        function resetForm() {
+            document.getElementById('edit-channel-id').value = '';
+            document.getElementById('ch-name').value = '';
+            document.getElementById('ch-logo').value = '';
+            document.getElementById('ch-urls').value = '';
+            document.getElementById('form-title').textContent = 'Añadir Nuevo Canal';
+        }
+    </script>
+</body>
+</html>

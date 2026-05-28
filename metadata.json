@@ -1,0 +1,8 @@
+{
+  "name": "Nexus IPTV Player",
+  "description": "Professional Netflix-style IPTV web player with spatial navigation for Smart TVs and cross-platform compatibility.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

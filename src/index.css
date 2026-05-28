@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&family=Playfair+Display:ital,wght@0,400;0,900;1,400&family=Montserrat:wght@300;500;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", serif;
+}
+
+@layer base {
+  html, body, #root {
+    @apply h-full w-full overflow-hidden bg-black text-white antialiased selection:bg-red-600/30;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Hide scrollbars for all elements */
+  * {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+  }
+
+  *::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+  }
+
+  h1, h2, h3 {
+    @apply tracking-tight;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .editorial-title {
+    font-size: clamp(3rem, 12vw, 8rem);
+    line-height: 0.85;
+    @apply font-black uppercase italic;
+  }
+
+  .glass-premium {
+    @apply bg-black/40 backdrop-blur-3xl border border-white/5;
+  }
+  
+  .text-micro {
+    @apply text-[10px] font-bold uppercase tracking-[0.3em] opacity-50;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
+  }
+
+  .animate-shake {
+    animation: shake 0.2s cubic-bezier(.36,.07,.19,.97) both;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.focus-ring-premium {
+  @apply ring-4 ring-red-600/40 shadow-[0_0_40px_rgba(220,38,38,0.2)];
+}
+

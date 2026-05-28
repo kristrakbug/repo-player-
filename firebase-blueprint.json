@@ -1,0 +1,23 @@
+{
+  "entities": {
+    "IPTVSettings": {
+      "title": "IPTV Settings",
+      "description": "Global IPTV source configuration",
+      "type": "object",
+      "properties": {
+        "m3uUrl": { "type": "string", "description": "URL of the M3U list" },
+        "xtreamUrl": { "type": "string", "description": "Xtream Codes Server URL" },
+        "username": { "type": "string", "description": "Xtream username" },
+        "password": { "type": "string", "description": "Xtream password" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["updatedAt"]
+    }
+  },
+  "firestore": {
+    "/settings/{settingId}": {
+      "schema": "IPTVSettings",
+      "description": "Collection for application settings"
+    }
+  }
+}

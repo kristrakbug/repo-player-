@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isEmailVerified() && request.auth.token.email == 'christianandresrodriguezsierra@gmail.com';
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation for IPTVSettings
+    function isValidIPTVSettings(data) {
+      let requiredFields = ['updatedAt'];
+      return data.keys().hasAll(requiredFields)
+        && (data.get('m3uUrl', '') is string && data.get('m3uUrl', '').size() <= 1024)
+        && (data.get('xtreamUrl', '') is string && data.get('xtreamUrl', '').size() <= 512)
+        && (data.get('username', '') is string && data.get('username', '').size() <= 128)
+        && (data.get('password', '') is string && data.get('password', '').size() <= 128)
+        && data.updatedAt == request.time;
+    }
+
+    // Settings collection
+    match /settings/{settingId} {
+      allow get: if true; // Publicly readable settings for the player
+      allow list: if false;
+      
+      allow create: if isAdmin() && isValidId(settingId) && isValidIPTVSettings(incoming()) && incoming().keys().size() <= 6;
+      allow update: if isAdmin() && isValidIPTVSettings(incoming()) 
+        && (incoming().diff(existing()).affectedKeys().hasOnly(['m3uUrl', 'xtreamUrl', 'username', 'password', 'updatedAt']));
+      allow delete: if isAdmin();
+    }
+  }
+}
